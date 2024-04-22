@@ -1,0 +1,126 @@
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torchvision.transforms as transforms
+import torchvision.datasets as datasets
+import matplotlib.pyplot as plt
+
+# Define the 3-Layer MLP model
+class FNet(nn.Module):
+    def __init__(self):
+        super(FNet, self).__init__()
+        self.fc1 = nn.Linear(784, 512)
+        self.fc2 = nn.Linear(512, 256)
+        self.out = nn.Linear(256, 10)
+        
+        # Dropout probability - set for avoiding overfitting
+        self.dropout = nn.Dropout(0.2)
+
+    def forward(self, x):
+        x = x.view(-1, 28 * 28)
+        x = self.dropout(F.relu(self.fc1(x)))
+        x = self.dropout(F.relu(self.fc2(x)))
+        x = self.out(x)
+        return x
+
+# Download and preprocess the MNIST dataset
+transform = transforms.Compose([
+    transforms.RandomRotation(degrees=10),  
+    transforms.RandomCrop(size=28, padding=4),  
+    transforms.ToTensor(),  
+    transforms.Normalize((0.5,), (0.5,))  
+])
+
+train_dataset = datasets.MNIST(root='./data', train=True, transform=transform, download=True)
+test_dataset = datasets.MNIST(root='./data', train=False, transform=transform, download=True)
+
+# Create data loaders
+train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=64, shuffle=True)
+test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=64, shuffle=False)
+
+# Initialize the model
+model = FNet()
+
+# Define the loss function and optimizer
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.Adam(model.parameters())
+
+# Training loop
+best_accuracy = 0.0
+train_losses = []
+train_accuracies = []
+valid_losses = []
+valid_accuracies = []
+for epoch in range(5):
+    # Training
+    model.train()
+    running_train_loss = 0.0
+    correct_train = 0
+    total_train = 0
+    for images, labels in train_loader:
+        optimizer.zero_grad()
+        outputs = model(images)
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()
+        
+        running_train_loss += loss.item() * images.size(0) # Accumulate the loss
+        _, predicted = torch.max(outputs, 1)
+        total_train += labels.size(0)
+        correct_train += (predicted == labels).sum().item()
+
+    train_loss = running_train_loss / len(train_loader.dataset) # Calculate the mean loss
+    train_accuracy = correct_train / total_train
+    train_losses.append(train_loss)
+    train_accuracies.append(train_accuracy)
+
+    # Validation
+    model.eval()
+    running_valid_loss = 0.0
+    correct_valid = 0
+    total_valid = 0
+    with torch.no_grad():
+        for images, labels in test_loader:
+            outputs = model(images)
+            loss = criterion(outputs, labels)
+            
+            running_valid_loss += loss.item() * images.size(0) # Accumulate the loss
+            _, predicted = torch.max(outputs, 1)
+            total_valid += labels.size(0)
+            correct_valid += (predicted == labels).sum().item()
+
+    valid_loss = running_valid_loss / len(test_loader.dataset) # Calculate the mean loss
+    valid_accuracy = correct_valid / total_valid
+    valid_losses.append(valid_loss)
+    valid_accuracies.append(valid_accuracy)
+
+    # Save the best model
+    if valid_accuracy > best_accuracy:
+        best_accuracy = valid_accuracy
+        torch.save(model.state_dict(), 'best_model.pth')
+        print("Best model saved.")
+
+    print(f"Epoch {epoch+1}:")
+    print(f"Train Loss: {train_loss:.4f}, Train Accuracy: {train_accuracy:.4f}")
+    print(f"Validation Loss: {valid_loss:.4f}, Validation Accuracy: {valid_accuracy:.4f}")
+
+# Plot Loss-Epoch and Accuracy-Epoch graphs for both training and validation
+plt.figure(figsize=(10, 5))
+plt.subplot(1, 2, 1)
+plt.plot(range(1, len(train_losses)+1), train_losses, label='Training Loss')
+plt.plot(range(1, len(valid_losses)+1), valid_losses, label='Validation Loss')
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.title('Loss-Epoch Graph')
+plt.legend()
+
+plt.subplot(1, 2, 2)
+plt.plot(range(1, len(train_accuracies)+1), train_accuracies, label='Training Accuracy')
+plt.plot(range(1, len(valid_accuracies)+1), valid_accuracies, label='Validation Accuracy')
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.title('Accuracy-Epoch Graph')
+plt.legend()
+
+plt.tight_layout()
+plt.show()
