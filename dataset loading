@@ -1,0 +1,16 @@
+import torch
+print(torch.__version__)
+
+import torchvision
+import torchvision.datasets as datasets
+
+train_dataset = torchvision.datasets.MNIST(root='./data', train=True, transform=None, download=True)
+test_dataset = torchvision.datasets.MNIST(root='./data', train=False, transform=None, download=True)
+
+import torchvision.transforms as transforms
+transform = transforms.Compose([
+    transforms.RandomRotation(degrees=10),  # Randomly rotate images by up to 10 degrees
+    transforms.RandomCrop(size=28, padding=4),  # Randomly crop images to size 28x28 with padding of 4
+    transforms.ToTensor(),  # Convert PIL image to tensor
+    transforms.Normalize((0.5,), (0.5,))  # Normalize the image data
+])
